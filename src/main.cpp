@@ -9,33 +9,46 @@ using json = nlohmann::json;
 using namespace std;
 using namespace chrono;
 
-void measureMap(json inputJson, json queryJson)
+typedef std::chrono::high_resolution_clock Clock;
+
+void measureMap(json inputJson, json queryJson, ContainerInterface<int, int>& container)
 {
-    // using ContainerType = MapContainer<int, int>;
-    // ContainerType map;
-    using ContainerType = HopscotchMapContainer<int, int>;
-    ContainerType map;
-    // Insert items
-    auto start = high_resolution_clock::now();
+    cout << "container <<<<<" << container.getString() << ">>>>>>>>>>>>\n";
+    // Measure Insert Time
+    auto totalInsertTime = std::chrono::nanoseconds::zero();
+    auto start = Clock::now();
+    // Read from JSON structure and load the container
     for(size_t key=1; key < inputJson.size(); key++){
-        // Read from JSON structure
         string str = to_string(key); 
-        // Insert into the plain map
-        map.insert(key, inputJson[str]);
+        int value = inputJson[str];
+        // Insert into the plain container
+        totalInsertTime += container.insert(key, value);
     }
-    auto stop = high_resolution_clock::now();
-    seconds timeTakenToLoadTheMap = duration_cast<seconds>(stop - start);
-    cout << "Time taken to load the map = " << timeTakenToLoadTheMap.count() << " seconds \n";
-    // Measure lookup time
-    auto lookupStart = high_resolution_clock::now();
+    auto stop = Clock::now();
+    auto timeTakenToLoadTheMap = duration_cast<seconds>(stop - start);
+    cout << "Time taken to load the container: " << timeTakenToLoadTheMap.count() << " seconds \n";
+    cout << "Total insert time: " << totalInsertTime.count() << " nanoseconds, " << std::chrono::duration<double>(totalInsertTime).count() << " seconds" << endl;
+
+    // Measure Probing Time
+    auto totalLookupTime = std::chrono::nanoseconds::zero();
+    auto lookupStart = Clock::now();
     for(size_t i=1; i < queryJson.size(); i++){
         string str = to_string(i);
         int val;
-        map.measureLookupTime(queryJson[str], val);
+        int key = queryJson[str];
+        totalLookupTime += container.probeKey(key, val);
+        //verify value
+        string str1 = to_string(key);
+        int value = inputJson[str1];
+        if (val != value)
+        {
+            cout << "the value is incorrect: " << val << " != " << value << endl;
+        }   
     }
-    auto lookupStop = high_resolution_clock::now();
-    seconds timeTakenToLookupTheMap = duration_cast<seconds>(lookupStop - lookupStart);
-    cout << "Time taken to lookup the map = " << timeTakenToLookupTheMap.count() << " seconds \n";
+    auto lookupStop = Clock::now();
+    auto timeTakenToLookupTheMap = duration_cast<seconds>(lookupStop - lookupStart);
+    cout << "Time taken to lookup the container = " << timeTakenToLookupTheMap.count() << " seconds \n";
+    cout << "Total lookup time: " << totalLookupTime.count() << " nanoseconds, " << std::chrono::duration<double>(totalLookupTime).count() << " seconds" << endl;
 }
 
 int main(int argc, char** argv) {
@@ -56,8 +69,12 @@ int main(int argc, char** argv) {
     //read query file
     queryFile >> queryJson;
     queryFile.close();
-    // ContainerWrapper<int, string, ContainerType> wrapper;
-    
-    measureMap(inputJson, queryJson);
+    //compare insert and probing timing of different containers
+    HopscotchMapContainer<int, int> hopSchotchMap;
+    measureMap(inputJson, queryJson, hopSchotchMap);
+    MapContainer<int, int> map;
+    measureMap(inputJson, queryJson, map);
+    UnorderedMapContainer<int, int> unorderedMap;
+    measureMap(inputJson, queryJson, unorderedMap);
     return 0;
 }
